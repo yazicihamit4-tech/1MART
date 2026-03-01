@@ -4839,31 +4839,39 @@ const THEMES = [
 
         isAndroid: function () { return (typeof window.Android !== "undefined" && window.Android !== null); },
 
-        showRewardedAd: function (onSuccess) {
-            this.pendingCallback = onSuccess;
+        // Geçiş Reklamı (Interstitial) - Örn: Oyun sonlarında
+        showInterstitialAd: function () {
             if (this.isAndroid()) {
-                if (typeof window.Android.showRewardedAd === 'function') {
-                    // Priority: Yandex -> AdMob (Handled by Native if supported, otherwise Yandex)
-                    window.Android.showRewardedAd(this.yandexRewardedId);
-                }
+                // Yeni MainActivity'deki birleştirilmiş akışı çağırır
+                window.Android.showInterstitial(null);
             } else {
-                console.warn("AdManager: Not Android, cannot show rewarded ad.");
+                console.log("Web Mode: Interstitial Simulation");
+                if(window.resumeGame) window.resumeGame();
             }
         },
 
-        // Callback for Android to trigger reward
+        // Ödüllü Reklam (Rewarded) - Örn: İpucu veya Market için
+        showRewardedAd: function (onSuccess) {
+            // Kotlin tarafı ödül verildiğinde window.onReward() fonksiyonunu tetikler
+            window.onReward = () => {
+                onSuccess();
+                window.onReward = null; // Bellek temizliği
+            };
+
+            if (this.isAndroid()) {
+                window.Android.showRewardedAd(null);
+            } else {
+                console.log("Web Mode: Rewarded Simulation");
+                if(window.onReward) window.onReward();
+                if(window.resumeGame) window.resumeGame();
+            }
+        },
+
+        // Callback for Android to trigger reward (Mevcut olan korunuyor)
         onReward: function() {
             if (this.pendingCallback) {
                 this.pendingCallback();
                 this.pendingCallback = null;
-            }
-        },
-
-        showInterstitialAd: function () {
-            if (this.isAndroid()) {
-                if (typeof window.Android.showInterstitial === 'function') {
-                     window.Android.showInterstitial(this.yandexInterstitialId);
-                }
             }
         },
 
