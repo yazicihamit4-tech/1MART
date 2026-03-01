@@ -150,6 +150,7 @@ class MainActivity : AppCompatActivity() {
         }
         adView.adListener = object : com.google.android.gms.ads.AdListener() {
             override fun onAdFailedToLoad(p0: GLoadAdError) {
+                Log.e(TAG, "AdMob Banner Failed to Load. Error Code: ${p0.code}, Message: ${p0.message}")
                 setupYandexBanner() // AdMob Banner başarısızsa Yandex Banner yükle
             }
         }
@@ -164,6 +165,22 @@ class MainActivity : AppCompatActivity() {
             setAdUnitId(Y_BANNER_ID)
             setAdSize(BannerAdSize.stickySize(this@MainActivity, 320))
         }
+
+        yandexBanner.setBannerAdEventListener(object : com.yandex.mobile.ads.banner.BannerAdEventListener {
+            override fun onAdLoaded() {
+                Log.d(TAG, "Yandex Banner Loaded Successfully")
+                container.visibility = android.view.View.VISIBLE
+            }
+            override fun onAdFailedToLoad(error: AdRequestError) {
+                Log.e(TAG, "Yandex Banner Failed to Load. Error Code: ${error.code}, Message: ${error.description}")
+                container.visibility = android.view.View.GONE // İki reklam da başarısızsa alanı gizle
+            }
+            override fun onAdClicked() {}
+            override fun onLeftApplication() {}
+            override fun onReturnedToApplication() {}
+            override fun onImpression(p0: ImpressionData?) {}
+        })
+
         container.removeAllViews()
         container.addView(yandexBanner)
         yandexBanner.loadAd(AdRequest.Builder().build())
@@ -178,18 +195,22 @@ class MainActivity : AppCompatActivity() {
             if (admobInterstitial != null) {
                 admobInterstitial?.fullScreenContentCallback = object : FullScreenContentCallback() {
                     override fun onAdDismissedFullScreenContent() {
+                        Log.d(TAG, "AdMob Interstitial Closed")
                         loadAdMobInterstitial()
                         resumeGame()
                     }
                     override fun onAdFailedToShowFullScreenContent(p0: GAdError) {
+                        Log.e(TAG, "AdMob Interstitial Failed to Show. Error Code: ${p0.code}, Message: ${p0.message}")
                         showYandexInterstitialInternal() // AdMob gösterilemezse Yandex'e geç
                     }
                     override fun onAdShowedFullScreenContent() {
+                        Log.d(TAG, "AdMob Interstitial Showed Successfully")
                         cancelTimeout() // Reklam başarıyla gösterildiğinde timeout iptal edilir
                     }
                 }
                 admobInterstitial?.show(this)
             } else {
+                Log.w(TAG, "AdMob Interstitial not loaded, trying Yandex fallback.")
                 // 2. ÖNCELİK: YANDEX
                 showYandexInterstitialInternal()
             }
@@ -200,16 +221,24 @@ class MainActivity : AppCompatActivity() {
         if (yandexInterstitial != null) {
             yandexInterstitial?.setAdEventListener(object : InterstitialAdEventListener {
                 override fun onAdDismissed() {
+                    Log.d(TAG, "Yandex Interstitial Closed")
                     loadYandexAds()
                     resumeGame()
                 }
-                override fun onAdFailedToShow(p0: AdError) { resumeGame() }
-                override fun onAdShown() { cancelTimeout() }
+                override fun onAdFailedToShow(p0: AdError) {
+                    Log.e(TAG, "Yandex Interstitial Failed to Show. Error Code: ${p0.description}")
+                    resumeGame()
+                }
+                override fun onAdShown() {
+                    Log.d(TAG, "Yandex Interstitial Showed Successfully")
+                    cancelTimeout()
+                }
                 override fun onAdClicked() {}
                 override fun onAdImpression(p0: ImpressionData?) {}
             })
             yandexInterstitial?.show(this)
         } else {
+            Log.e(TAG, "BOTH Interstitials failed to load. Resuming game immediately.")
             resumeGame() // İkisi de yoksa oyunu kurtar
         }
     }
@@ -223,20 +252,25 @@ class MainActivity : AppCompatActivity() {
             if (admobRewarded != null) {
                 admobRewarded?.fullScreenContentCallback = object : FullScreenContentCallback() {
                     override fun onAdDismissedFullScreenContent() {
+                        Log.d(TAG, "AdMob Rewarded Closed")
                         loadAdMobRewarded()
                         resumeGame()
                     }
                     override fun onAdFailedToShowFullScreenContent(p0: GAdError) {
+                        Log.e(TAG, "AdMob Rewarded Failed to Show. Error Code: ${p0.code}, Message: ${p0.message}")
                         showYandexRewardedInternal()
                     }
                     override fun onAdShowedFullScreenContent() {
+                        Log.d(TAG, "AdMob Rewarded Showed Successfully")
                         cancelTimeout() // Reklam başarıyla gösterildiğinde timeout iptal edilir
                     }
                 }
                 admobRewarded?.show(this) {
+                    Log.d(TAG, "AdMob Reward Earned")
                     myWebView.evaluateJavascript("if(window.onReward) window.onReward();", null)
                 }
             } else {
+                Log.w(TAG, "AdMob Rewarded not loaded, trying Yandex fallback.")
                 // 2. ÖNCELİK: YANDEX
                 showYandexRewardedInternal()
             }
@@ -247,19 +281,28 @@ class MainActivity : AppCompatActivity() {
         if (yandexRewarded != null) {
             yandexRewarded?.setAdEventListener(object : RewardedAdEventListener {
                 override fun onRewarded(p0: Reward) {
+                    Log.d(TAG, "Yandex Reward Earned")
                     myWebView.evaluateJavascript("if(window.onReward) window.onReward();", null)
                 }
                 override fun onAdDismissed() {
+                    Log.d(TAG, "Yandex Rewarded Closed")
                     loadYandexAds()
                     resumeGame()
                 }
-                override fun onAdFailedToShow(p0: AdError) { resumeGame() }
-                override fun onAdShown() { cancelTimeout() }
+                override fun onAdFailedToShow(p0: AdError) {
+                    Log.e(TAG, "Yandex Rewarded Failed to Show. Error Code: ${p0.description}")
+                    resumeGame()
+                }
+                override fun onAdShown() {
+                    Log.d(TAG, "Yandex Rewarded Showed Successfully")
+                    cancelTimeout()
+                }
                 override fun onAdClicked() {}
                 override fun onAdImpression(p0: ImpressionData?) {}
             })
             yandexRewarded?.show(this)
         } else {
+            Log.e(TAG, "BOTH Rewarded ads failed to load. Resuming game immediately.")
             resumeGame()
         }
     }
@@ -268,21 +311,30 @@ class MainActivity : AppCompatActivity() {
     private fun loadAdMobInterstitial() {
         GInterstitialAd.load(this, ADMOB_INTERSTITIAL_ID, GAdRequest.Builder().build(), object : GInterstitialAdLoadCallback() {
             override fun onAdLoaded(ad: GInterstitialAd) { admobInterstitial = ad }
-            override fun onAdFailedToLoad(p0: GLoadAdError) { admobInterstitial = null }
+            override fun onAdFailedToLoad(p0: GLoadAdError) {
+                Log.e(TAG, "AdMob Interstitial Load Error: ${p0.code} - ${p0.message}")
+                admobInterstitial = null
+            }
         })
     }
 
     private fun loadAdMobRewarded() {
         GRewardedAd.load(this, ADMOB_REWARDED_ID, GAdRequest.Builder().build(), object : GRewardedAdLoadCallback() {
             override fun onAdLoaded(ad: GRewardedAd) { admobRewarded = ad }
-            override fun onAdFailedToLoad(p0: GLoadAdError) { admobRewarded = null }
+            override fun onAdFailedToLoad(p0: GLoadAdError) {
+                Log.e(TAG, "AdMob Rewarded Load Error: ${p0.code} - ${p0.message}")
+                admobRewarded = null
+            }
         })
     }
 
     private fun loadAdMobRewardedInterstitial() {
         GRewardedInterstitialAd.load(this, ADMOB_REWARDED_INTERSTITIAL_ID, GAdRequest.Builder().build(), object : GRewardedInterstitialAdLoadCallback() {
             override fun onAdLoaded(ad: GRewardedInterstitialAd) { admobRewardedInterstitial = ad }
-            override fun onAdFailedToLoad(p0: GLoadAdError) { admobRewardedInterstitial = null }
+            override fun onAdFailedToLoad(p0: GLoadAdError) {
+                Log.e(TAG, "AdMob Rewarded Interstitial Load Error: ${p0.code} - ${p0.message}")
+                admobRewardedInterstitial = null
+            }
         })
     }
 
@@ -290,13 +342,19 @@ class MainActivity : AppCompatActivity() {
         yandexInterstitialLoader = InterstitialAdLoader(this).apply {
             setAdLoadListener(object : InterstitialAdLoadListener {
                 override fun onAdLoaded(ad: InterstitialAd) { yandexInterstitial = ad }
-                override fun onAdFailedToLoad(p0: AdRequestError) { yandexInterstitial = null }
+                override fun onAdFailedToLoad(p0: AdRequestError) {
+                    Log.e(TAG, "Yandex Interstitial Load Error: ${p0.code} - ${p0.description}")
+                    yandexInterstitial = null
+                }
             })
         }
         yandexRewardedLoader = RewardedAdLoader(this).apply {
             setAdLoadListener(object : RewardedAdLoadListener {
                 override fun onAdLoaded(ad: RewardedAd) { yandexRewarded = ad }
-                override fun onAdFailedToLoad(p0: AdRequestError) { yandexRewarded = null }
+                override fun onAdFailedToLoad(p0: AdRequestError) {
+                    Log.e(TAG, "Yandex Rewarded Load Error: ${p0.code} - ${p0.description}")
+                    yandexRewarded = null
+                }
             })
         }
     }
