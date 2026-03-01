@@ -4028,12 +4028,25 @@ text-align: center;
                             <option value="4" selected>4 Basamaklı</option>
                             <option value="5">5 Basamaklı</option>
                         </select>
+                        <select id="singleMode" style="flex:1; padding: 8px; border-radius: 8px; border: 1px solid #dfe6e9; background: #fdfdfd; font-weight: 600;" onchange="toggleTimeSelect('single')">
+                            <option value="classic">⚡ Haklı</option>
+                            <option value="timed">⏱️ Süreli</option>
+                        </select>
                     </div>
+
+                    <select id="singleDuration" style="display:none; width:100%; margin-bottom:10px; padding:8px; border-radius:8px; border:1px solid #dfe6e9;">
+                        <option value="3">3 Dakika</option>
+                        <option value="5">5 Dakika</option>
+                    </select>
 
                     <div style="margin-top: 5px; padding: 8px; background: rgba(0,0,0,0.03); border-radius: 8px;">
                         <div style="display: flex; align-items: center; justify-content: space-between;">
                             <label style="font-size: 0.8rem; font-weight: bold; color: #555;">🤖 Bilgisayara Karşı</label>
-                            <input type="checkbox" id="checkVsCpu" style="width: 20px; height: 20px;">
+                            <input type="checkbox" id="checkVsCpu" style="width: 20px; height: 20px;" onchange="document.getElementById('pvcSecretDiv').style.display = this.checked ? 'block' : 'none'">
+                        </div>
+                        <div id="pvcSecretDiv" style="display:none; margin-top:10px;">
+                            <input type="tel" id="playerSecretInput" placeholder="Tutacağın sayı (Opsiyonel)" style="width:100%; padding:8px; border-radius:8px; border:1px solid #ccc; text-align:center; letter-spacing:3px;">
+                            <small style="color:#999; font-size:0.7rem; display:block; text-align:center;">Boş bırakırsan sistem tutar</small>
                         </div>
                     </div>
 
@@ -4057,8 +4070,23 @@ text-align: center;
                             <option value="4" selected>4 Basamak</option>
                             <option value="5">5 Basamak</option>
                         </select>
-                        <button onclick="createRoom()" class="btn-blue" style="margin:0; padding: 5px; font-size: 0.7rem;">ODA KUR (50💰)</button>
+                        <select id="createPlayStyle" style="padding: 6px; border-radius: 6px; border: 1px solid #dbeafe; font-size: 0.75rem; font-weight:600;" onchange="toggleTimeSelect('create')">
+                            <option value="turn">⚡ Haklı</option>
+                            <option value="timed">⏱️ Süreli</option>
+                        </select>
+                        <select id="createMode" style="display:none;">
+                            <option value="classic">Klasik</option>
+                        </select>
                     </div>
+
+                    <div id="timeSelectDiv" style="display:none; margin-bottom:10px;">
+                        <select id="createDuration" style="width:100%; padding:8px; border-radius:8px; border:1px solid #dfe6e9;">
+                            <option value="3">3 Dakika</option>
+                            <option value="5">5 Dakika</option>
+                        </select>
+                    </div>
+
+                    <button onclick="createRoom()" class="btn-blue" style="margin-bottom:10px; width:100%; padding: 10px; font-size: 0.9rem;">ODA KUR (50💰)</button>
 
                     <div style="display: flex; gap: 5px; align-items: center; background: #fff; border-top: 2px solid #f1f2f6; padding-top: 8px;">
                         <input type="tel" id="joinCode" placeholder="Oda Kodu" style="flex: 1; padding: 8px; border-radius: 6px; border: 2px solid #eee; text-align: center; font-size: 0.9rem; margin:0;">
