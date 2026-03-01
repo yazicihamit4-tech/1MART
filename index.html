@@ -7048,16 +7048,12 @@ if (game.isPvc && game.active) {
         }
 
         // 4. REKLAM MANTIĞI - 3 OYUNDA BİR
+        // endGameLocal fonksiyonu içindeki reklam kısmı
         try {
             gamesPlayedCount++;
-            // Her 3 oyunda bir reklam göster
             if (gamesPlayedCount % 3 === 0) {
-                setTimeout(() => {
-                    // Reklam yüklenmeden önce kontrol et
-                    if (typeof AdManager !== 'undefined' && AdManager.showInterstitialAd) {
-                        AdManager.showInterstitialAd();
-                    }
-                }, 1500);
+                // Artık sadece bunu çağırmak yeterli, sistem önce AdMob sonra Yandex dener.
+                AdManager.showInterstitialAd();
             }
         } catch (e) {
             console.error("Reklam hatası:", e);
@@ -10906,31 +10902,26 @@ function restartWordGame() {
     };
 
     // --- GLOBAL AD CALLBACKS (CLEAN V2) ---
+    // Reklam kapandığında Kotlin tarafından tetiklenir
     window.onAdClosed = function() {
-        console.log("Global onAdClosed called");
-
-        // Removed container hiding to fix 'Google Ads disappeared' bug.
+        console.log("Ad Closed - Resuming Game UI");
 
         // Trigger Reward Callback if pending
         if (typeof AdManager !== "undefined" && AdManager.pendingCallback) {
             AdManager.onReward();
         }
 
-        // Resume Game
-        if (typeof window.resumeGame === "function") window.resumeGame();
+        if(window.resumeGame) window.resumeGame();
     };
 
+    // Oyunun donmasını engelleyen kritik fonksiyon
     window.resumeGame = function() {
-        console.log("Global resumeGame called");
-        if (typeof game !== "undefined" && game.active) {
-            // Re-enable interactions if they were disabled
-        }
+        console.log("Resume Game Signal Received");
+        // Burada eğer oyunu durdurduysan (pause), devam ettirme kodlarını ekleyebilirsin.
+        // Örn: game.paused = false;
 
-        // Safe timeout to ensure UI updates after ad
-        setTimeout(() => {
-            // Trigger a resize event to force browser redraw (fixes some white screens)
-            window.dispatchEvent(new Event('resize'));
-        }, 100);
+        // Beyaz ekran kalmaması için ekranı yenilemeye zorla (render fix)
+        window.dispatchEvent(new Event('resize'));
     };
     </script>
 
