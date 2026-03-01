@@ -4819,68 +4819,36 @@ const THEMES = [
 
 
     const AdManager = {
-        pendingCallback: null,
-
-        // AdMob Configuration (Secondary)
-        appId: "ca-app-pub-5879474591831999~1348513678",
-
-        // AdMob Units
-        admobBannerId: "ca-app-pub-5879474591831999/2171448597",
-        admobInterstitialId: "ca-app-pub-5879474591831999/8282395523",
-        admobNativeId: "ca-app-pub-5879474591831999/2306675386",
-        admobRewardedId: "ca-app-pub-5879474591831999/6350366758",
-        admobRewardedIntId: "ca-app-pub-5879474591831999/6350366758",
-
-        // Yandex Units (Primary)
-        yandexAppId: "18543851",
-        yandexBannerId: "R-M-18543851-9",
-        yandexInterstitialId: "R-M-18543851-10",
-        yandexRewardedId: "R-M-18543851-8",
-
-        isAndroid: function () { return (typeof window.Android !== "undefined" && window.Android !== null); },
-
-        showRewardedAd: function (onSuccess) {
-            this.pendingCallback = onSuccess;
-            if (this.isAndroid()) {
-                if (typeof window.Android.showRewardedAd === 'function') {
-                    // Priority: Yandex -> AdMob (Handled by Native if supported, otherwise Yandex)
-                    window.Android.showRewardedAd(this.yandexRewardedId);
-                }
-            } else {
-                console.warn("AdManager: Not Android, cannot show rewarded ad.");
-            }
+        // Android Interface Kontrolü
+        isAndroid: function () {
+            return (typeof window.Android !== "undefined" && window.Android !== null);
         },
 
-        // Callback for Android to trigger reward
-        onReward: function() {
-            if (this.pendingCallback) {
-                this.pendingCallback();
-                this.pendingCallback = null;
-            }
-        },
-
+        // Geçiş Reklamı (Interstitial) - Örn: Oyun sonlarında
         showInterstitialAd: function () {
             if (this.isAndroid()) {
-                if (typeof window.Android.showInterstitial === 'function') {
-                     window.Android.showInterstitial(this.yandexInterstitialId);
-                }
+                // Yeni MainActivity'deki birleştirilmiş akışı çağırır
+                window.Android.showInterstitial(null);
+            } else {
+                console.log("Web Mode: Interstitial Simulation");
+                if(window.resumeGame) window.resumeGame();
             }
         },
 
-        showNativeAd: function () {
-            if (this.isAndroid()) {
-                if (typeof window.Android.showNativeAd === 'function') {
-                    // Yandex Native ID was not provided, using AdMob as fallback/primary for Native
-                    window.Android.showNativeAd(this.admobNativeId);
-                }
-            }
-        },
+        // Ödüllü Reklam (Rewarded) - Örn: İpucu veya Market için
+        showRewardedAd: function (onSuccess) {
+            // Kotlin tarafı ödül verildiğinde window.onReward() fonksiyonunu tetikler
+            window.onReward = () => {
+                onSuccess();
+                window.onReward = null; // Bellek temizliği
+            };
 
-        showBannerAd: function () {
             if (this.isAndroid()) {
-                if (typeof window.Android.showBannerAd === 'function') {
-                    window.Android.showBannerAd(this.yandexBannerId);
-                }
+                window.Android.showRewardedAd(null);
+            } else {
+                console.log("Web Mode: Rewarded Simulation");
+                if(window.onReward) window.onReward();
+                if(window.resumeGame) window.resumeGame();
             }
         }
     };
@@ -7040,16 +7008,12 @@ if (game.isPvc && game.active) {
         }
 
         // 4. REKLAM MANTIĞI - 3 OYUNDA BİR
+        // endGameLocal fonksiyonu içindeki reklam kısmı
         try {
             gamesPlayedCount++;
-            // Her 3 oyunda bir reklam göster
             if (gamesPlayedCount % 3 === 0) {
-                setTimeout(() => {
-                    // Reklam yüklenmeden önce kontrol et
-                    if (typeof AdManager !== 'undefined' && AdManager.showInterstitialAd) {
-                        AdManager.showInterstitialAd();
-                    }
-                }, 1500);
+                // Artık sadece bunu çağırmak yeterli, sistem önce AdMob sonra Yandex dener.
+                AdManager.showInterstitialAd();
             }
         } catch (e) {
             console.error("Reklam hatası:", e);
@@ -10898,31 +10862,20 @@ function restartWordGame() {
     };
 
     // --- GLOBAL AD CALLBACKS (CLEAN V2) ---
+    // Reklam kapandığında Kotlin tarafından tetiklenir
     window.onAdClosed = function() {
-        console.log("Global onAdClosed called");
-
-        // Removed container hiding to fix 'Google Ads disappeared' bug.
-
-        // Trigger Reward Callback if pending
-        if (typeof AdManager !== "undefined" && AdManager.pendingCallback) {
-            AdManager.onReward();
-        }
-
-        // Resume Game
-        if (typeof window.resumeGame === "function") window.resumeGame();
+        console.log("Ad Closed - Resuming Game UI");
+        if(window.resumeGame) window.resumeGame();
     };
 
+    // Oyunun donmasını engelleyen kritik fonksiyon
     window.resumeGame = function() {
-        console.log("Global resumeGame called");
-        if (typeof game !== "undefined" && game.active) {
-            // Re-enable interactions if they were disabled
-        }
+        console.log("Resume Game Signal Received");
+        // Burada eğer oyunu durdurduysan (pause), devam ettirme kodlarını ekleyebilirsin.
+        // Örn: game.paused = false;
 
-        // Safe timeout to ensure UI updates after ad
-        setTimeout(() => {
-            // Trigger a resize event to force browser redraw (fixes some white screens)
-            window.dispatchEvent(new Event('resize'));
-        }, 100);
+        // Beyaz ekran kalmaması için ekranı yenilemeye zorla (render fix)
+        window.dispatchEvent(new Event('resize'));
     };
     </script>
 
