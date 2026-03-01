@@ -7247,6 +7247,17 @@ function startSingle() {
             return;
         }
 
+        // Bounty (Ödül Avcısı) Moduysa aynı avı tekrar başlatmayı teklif et
+        if (game.mode === 'bounty') {
+            if (typeof attemptBounty === 'function' && game.bountyOwner && game.secret && game.bountyPrize) {
+                attemptBounty(game.bountyId, game.bountyOwner, game.secret, game.bountyPrize, game.diff);
+            } else if (typeof openBountyScreen === 'function') {
+                openBountyScreen();
+            }
+            closeModal('modal-end');
+            return;
+        }
+
         // Online Mod: Rövanş Teklif Modalını Aç
         openRematchModal();
     }
@@ -9401,7 +9412,11 @@ function startSingle() {
         }
 
         if (typeof game !== 'undefined' && game.bountyId) {
-            if (typeof openBountyScreen === 'function') openBountyScreen();
+            if (typeof attemptBounty === 'function' && game.bountyOwner && game.secret && game.bountyPrize) {
+                attemptBounty(game.bountyId, game.bountyOwner, game.secret, game.bountyPrize, game.diff);
+            } else if (typeof openBountyScreen === 'function') {
+                openBountyScreen();
+            }
             return;
         }
 
@@ -9537,9 +9552,12 @@ function startSingle() {
             wordGameState.active = false;
             AudioEngine.error();
             setTimeout(() => {
-                alert(`MAALESEF BİLEMEDİN!\nDoğru Kelime: ${wordGameState.secret}`);
-                changeScreen('screen-lobby');
-                checkWordGameAd(); // Check ad on loss too? Usually yes.
+                document.getElementById('endButtons').style.display = 'flex';
+                document.getElementById('endTitle').innerText = 'KAYBETTİN';
+                document.getElementById('endTitle').style.color = "#e74c3c";
+                document.getElementById('endMsg').innerText = "Kelime: " + wordGameState.secret;
+                showModal('modal-end');
+                checkWordGameAd();
             }, 500);
         }
 
@@ -9559,8 +9577,11 @@ function startSingle() {
                     AudioEngine.error();
                     showToast("💻 Bilgisayar Kelimeyi Buldu: " + wordGameState.secret);
                     setTimeout(() => {
-                        alert("BİLGİSAYAR KAZANDI! 🤖");
-                        changeScreen('screen-lobby');
+                        document.getElementById('endButtons').style.display = 'flex';
+                        document.getElementById('endTitle').innerText = 'KAYBETTİN';
+                        document.getElementById('endTitle').style.color = "#e74c3c";
+                        document.getElementById('endMsg').innerText = "Kelime: " + wordGameState.secret;
+                        showModal('modal-end');
                         checkWordGameAd();
                     }, 1000);
                 } else {
@@ -9878,6 +9899,9 @@ function startSingle() {
 function restartWordGame() {
         const diff = wordGameState.length;
         const isPvC = (wordGameState.mode === 'pvc');
+        const prevMode = wordGameState.mode;
+        const prevTimeLimit = wordGameState.timeLimit;
+        const prevMaxGuesses = wordGameState.maxGuesses;
 
         const lvl = diff - 2;
         const data = WORD_DATA[lvl] || WORD_DATA[1];
@@ -9886,20 +9910,26 @@ function restartWordGame() {
 
         wordGameState = {
             active: true,
-            mode: isPvC ? 'pvc' : 'single',
+            mode: prevMode,
             secret: secret,
             length: diff,
             guesses: [],
-            maxGuesses: 6,
+            maxGuesses: prevMaxGuesses || 6,
             currentGuess: "",
             level: lvl,
-            startTime: Date.now()
+            startTime: Date.now(),
+            timeLimit: prevTimeLimit
         };
 
         if(isPvC) wordGameState.aiGuesses = [];
 
         renderWordBoard();
         updateWordKeyboard();
+
+        if (prevTimeLimit > 0) {
+            startWordTimer(prevTimeLimit);
+        }
+
         closeModal('modal-end'); // Just in case
     }
 
@@ -10153,10 +10183,7 @@ function restartWordGame() {
             }
         }
 
-        setTimeout(() => {
-            changeScreen('screen-lobby');
-            checkWordGameAd();
-        }, 4000);
+        checkWordGameAd();
     }
 
     function checkWordGameAd() {
