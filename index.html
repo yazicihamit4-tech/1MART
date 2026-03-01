@@ -7265,6 +7265,26 @@ function startSingle() {
     // --- RÖVANŞ SİSTEMİ (STABİL v2) ---
     function openRematchModal() {
         if (!game.room) return;
+
+        if (game.mode === 'online_word') {
+            // Word Game online rematch bypasses the config modal and sends an offer with the same settings
+            db.ref('rooms/' + game.room + '/rematch/offer').set({
+                from: game.role,
+                diff: wordGameState.length,
+                playStyle: wordGameState.timeLimit > 0 ? 'timed' : 'turn',
+                duration: wordGameState.timeLimit,
+                timestamp: Date.now()
+            });
+
+            document.getElementById('endButtons').style.display = 'none';
+            const statusEl = document.getElementById('rematchStatus');
+            if(statusEl) {
+                statusEl.innerText = "Teklif gönderildi, rakip bekleniyor...";
+                statusEl.style.display = 'block';
+            }
+            return;
+        }
+
         showModal('modal-rematch-offer');
     }
 
@@ -7822,9 +7842,6 @@ function startSingle() {
         db.ref('rooms/' + c).on('value', s => {
             const r = s.val();
             if (!r) return;
-
-            // RÖVANŞ KONTROLÜ (YENİ)
-            checkRematchUpdates(r);
 
             // Bağlantı kopma kontrolü
             if (game.active && r.status === 'playing' && (!r.p1 || !r.p2)) {
@@ -9798,52 +9815,6 @@ function startSingle() {
         });
     }
 
-    function listenWordRoom(c) {
-        db.ref('rooms/' + c).on('value', s => {
-            const r = s.val();
-            if (!r) return;
-
-            if (r.status === 'playing' && currentScreen !== 'screen-word-game') {
-                // Start Game
-                wordGameState = {
-                    active: true,
-                    mode: 'online',
-                    secret: r.secret,
-                    length: r.config.length,
-                    guesses: [],
-                    maxGuesses: 6,
-                    currentGuess: "",
-                    level: r.config.length - 2
-                };
-                changeScreen('screen-word-game');
-                renderWordBoard();
-                updateWordKeyboard();
-                showToast("DÜELLO BAŞLADI!");
-            }
-
-            // Check Winner
-            if (r.winner) {
-                if (r.winner === user.name) {
-                    showPiggyWin(500);
-                } else {
-                    alert("KAYBETTİN! Kazanan: " + r.winner);
-                    changeScreen('screen-lobby');
-                }
-                db.ref('rooms/' + c).off();
-            }
-        });
-
-        // Listen for Opponent Moves (Optional: Show ghost rows?)
-        // For now, simpler: First to guess wins.
-
-        db.ref('rooms/' + c + '/word_moves').on('child_added', s => {
-            const m = s.val();
-            if (m.g === wordGameState.secret) {
-                // Someone won
-                db.ref('rooms/' + c).update({ winner: m.u });
-            }
-        });
-    }
 
     function openWordCareer() {
         showModal('modal-word-career');
@@ -10475,14 +10446,95 @@ function restartWordGame() {
                    wordGameState.active = false;
                    if (r.winner === user.name) {
                        AudioEngine.win();
-                       alert("KAZANDIN! 🎉");
+                       handleWordGameWin();
                    } else {
                        AudioEngine.error();
-                       alert("KAYBETTİN! 😞\nKelime: " + wordGameState.secret);
+                       document.getElementById('endButtons').style.display = 'flex';
+                       document.getElementById('endTitle').innerText = 'KAYBETTİN';
+                       document.getElementById('endTitle').style.color = "#e74c3c";
+                       document.getElementById('endMsg').innerText = "Kelime: " + wordGameState.secret;
+                       showModal('modal-end');
+                       checkWordGameAd();
                    }
-                   changeScreen('screen-lobby');
-                   checkWordGameAd();
                }
+            }
+
+            // --- YENİ RÖVANŞ MANTIĞI (Word Game) ---
+            if (r.winner && r.rematch) {
+                const offer = r.rematch.offer;
+                const response = r.rematch.response;
+
+                if (offer) {
+                    if (offer.from !== game.role) {
+                        const area = document.getElementById('incomingRematchArea');
+                        const text = document.getElementById('incomingRematchText');
+                        const endBtns = document.getElementById('endButtons');
+                        const piggy = document.getElementById('piggyWinOverlay');
+
+                        if (!response) {
+                            if (piggy && piggy.style.display === 'flex') {
+                                piggy.classList.remove('show');
+                                piggy.style.display = 'none';
+                                document.getElementById('endTitle').innerText = 'KAZANDIN';
+                                document.getElementById('endTitle').style.color = "#2ed573";
+                                document.getElementById('endMsg').innerText = "Rakip rövanş istiyor!";
+                                showModal('modal-end');
+                            }
+
+                            if (area.style.display === 'none') {
+                                area.style.display = 'block';
+                                endBtns.style.display = 'none';
+
+                                const styleText = offer.playStyle === 'timed' ? `Süreli (${offer.duration}dk)` : 'Haklı';
+                                text.innerHTML = `<b>Rakip Rövanş İstiyor!</b><br>Kelime Düellosu, ${styleText}`;
+                                AudioEngine.notification();
+                            }
+                        }
+                    } else {
+                        const status = document.getElementById('rematchStatus');
+                        if (status && !response) status.innerText = "Rakip bekleniyor...";
+                    }
+                }
+
+                if (response) {
+                    if (response.accept) {
+                        const statusEl = document.getElementById('rematchStatus');
+                        if (statusEl) statusEl.innerText = "Oyun Başlatılıyor...";
+
+                        if (game.role === 'p1') {
+                            const newLength = offer.diff || 5;
+                            const newStyle = offer.playStyle || 'turn';
+                            const newDur = offer.duration || 0;
+                            const newMaxGuesses = newStyle === 'timed' ? 1000 : 6;
+
+                            const lvl = newLength - 2;
+                            const data = WORD_DATA[lvl] || WORD_DATA[1];
+                            const newSecret = data.words[Math.floor(Math.random() * data.words.length)];
+
+                            setTimeout(() => {
+                                db.ref('rooms/' + c).update({
+                                    winner: null,
+                                    rematch: null,
+                                    word_moves: null,
+                                    status: 'playing',
+                                    secret: newSecret,
+                                    startTime: Date.now(),
+                                    config: { length: newLength, timeLimit: newDur, maxGuesses: newMaxGuesses }
+                                });
+                            }, 1000);
+                        }
+                    } else {
+                        showToast("Rövanş teklifi reddedildi.");
+                        document.getElementById('incomingRematchArea').style.display = 'none';
+                        document.getElementById('endButtons').style.display = 'flex';
+                        const statusEl = document.getElementById('rematchStatus');
+                        if (statusEl) statusEl.innerText = "Reddedildi.";
+
+                        if (game.role === 'p1') {
+                            setTimeout(() => db.ref('rooms/' + c + '/rematch').remove(), 2000);
+                        }
+                    }
+                }
             }
 
             // Wait Logic (P2 Joined)
