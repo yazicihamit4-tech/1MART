@@ -184,6 +184,9 @@ class MainActivity : AppCompatActivity() {
                     override fun onAdFailedToShowFullScreenContent(p0: GAdError) {
                         showYandexInterstitialInternal() // AdMob gösterilemezse Yandex'e geç
                     }
+                    override fun onAdShowedFullScreenContent() {
+                        cancelTimeout() // Reklam başarıyla gösterildiğinde timeout iptal edilir
+                    }
                 }
                 admobInterstitial?.show(this)
             } else {
@@ -225,6 +228,9 @@ class MainActivity : AppCompatActivity() {
                     }
                     override fun onAdFailedToShowFullScreenContent(p0: GAdError) {
                         showYandexRewardedInternal()
+                    }
+                    override fun onAdShowedFullScreenContent() {
+                        cancelTimeout() // Reklam başarıyla gösterildiğinde timeout iptal edilir
                     }
                 }
                 admobRewarded?.show(this) {

@@ -4028,12 +4028,25 @@ text-align: center;
                             <option value="4" selected>4 Basamaklı</option>
                             <option value="5">5 Basamaklı</option>
                         </select>
+                        <select id="singleMode" style="flex:1; padding: 8px; border-radius: 8px; border: 1px solid #dfe6e9; background: #fdfdfd; font-weight: 600;" onchange="toggleTimeSelect('single')">
+                            <option value="classic">⚡ Haklı</option>
+                            <option value="timed">⏱️ Süreli</option>
+                        </select>
                     </div>
+
+                    <select id="singleDuration" style="display:none; width:100%; margin-bottom:10px; padding:8px; border-radius:8px; border:1px solid #dfe6e9;">
+                        <option value="3">3 Dakika</option>
+                        <option value="5">5 Dakika</option>
+                    </select>
 
                     <div style="margin-top: 5px; padding: 8px; background: rgba(0,0,0,0.03); border-radius: 8px;">
                         <div style="display: flex; align-items: center; justify-content: space-between;">
                             <label style="font-size: 0.8rem; font-weight: bold; color: #555;">🤖 Bilgisayara Karşı</label>
-                            <input type="checkbox" id="checkVsCpu" style="width: 20px; height: 20px;">
+                            <input type="checkbox" id="checkVsCpu" style="width: 20px; height: 20px;" onchange="document.getElementById('pvcSecretDiv').style.display = this.checked ? 'block' : 'none'">
+                        </div>
+                        <div id="pvcSecretDiv" style="display:none; margin-top:10px;">
+                            <input type="tel" id="playerSecretInput" placeholder="Tutacağın sayı (Opsiyonel)" style="width:100%; padding:8px; border-radius:8px; border:1px solid #ccc; text-align:center; letter-spacing:3px;">
+                            <small style="color:#999; font-size:0.7rem; display:block; text-align:center;">Boş bırakırsan sistem tutar</small>
                         </div>
                     </div>
 
@@ -4057,8 +4070,23 @@ text-align: center;
                             <option value="4" selected>4 Basamak</option>
                             <option value="5">5 Basamak</option>
                         </select>
-                        <button onclick="createRoom()" class="btn-blue" style="margin:0; padding: 5px; font-size: 0.7rem;">ODA KUR (50💰)</button>
+                        <select id="createPlayStyle" style="padding: 6px; border-radius: 6px; border: 1px solid #dbeafe; font-size: 0.75rem; font-weight:600;" onchange="toggleTimeSelect('create')">
+                            <option value="turn">⚡ Haklı</option>
+                            <option value="timed">⏱️ Süreli</option>
+                        </select>
+                        <select id="createMode" style="display:none;">
+                            <option value="classic">Klasik</option>
+                        </select>
                     </div>
+
+                    <div id="timeSelectDiv" style="display:none; margin-bottom:10px;">
+                        <select id="createDuration" style="width:100%; padding:8px; border-radius:8px; border:1px solid #dfe6e9;">
+                            <option value="3">3 Dakika</option>
+                            <option value="5">5 Dakika</option>
+                        </select>
+                    </div>
+
+                    <button onclick="createRoom()" class="btn-blue" style="margin-bottom:10px; width:100%; padding: 10px; font-size: 0.9rem;">ODA KUR (50💰)</button>
 
                     <div style="display: flex; gap: 5px; align-items: center; background: #fff; border-top: 2px solid #f1f2f6; padding-top: 8px;">
                         <input type="tel" id="joinCode" placeholder="Oda Kodu" style="flex: 1; padding: 8px; border-radius: 6px; border: 2px solid #eee; text-align: center; font-size: 0.9rem; margin:0;">
@@ -4839,31 +4867,39 @@ const THEMES = [
 
         isAndroid: function () { return (typeof window.Android !== "undefined" && window.Android !== null); },
 
-        showRewardedAd: function (onSuccess) {
-            this.pendingCallback = onSuccess;
+        // Geçiş Reklamı (Interstitial) - Örn: Oyun sonlarında
+        showInterstitialAd: function () {
             if (this.isAndroid()) {
-                if (typeof window.Android.showRewardedAd === 'function') {
-                    // Priority: Yandex -> AdMob (Handled by Native if supported, otherwise Yandex)
-                    window.Android.showRewardedAd(this.yandexRewardedId);
-                }
+                // Yeni MainActivity'deki birleştirilmiş akışı çağırır
+                window.Android.showInterstitial(null);
             } else {
-                console.warn("AdManager: Not Android, cannot show rewarded ad.");
+                console.log("Web Mode: Interstitial Simulation");
+                if(window.resumeGame) window.resumeGame();
             }
         },
 
-        // Callback for Android to trigger reward
+        // Ödüllü Reklam (Rewarded) - Örn: İpucu veya Market için
+        showRewardedAd: function (onSuccess) {
+            // Kotlin tarafı ödül verildiğinde window.onReward() fonksiyonunu tetikler
+            window.onReward = () => {
+                onSuccess();
+                window.onReward = null; // Bellek temizliği
+            };
+
+            if (this.isAndroid()) {
+                window.Android.showRewardedAd(null);
+            } else {
+                console.log("Web Mode: Rewarded Simulation");
+                if(window.onReward) window.onReward();
+                if(window.resumeGame) window.resumeGame();
+            }
+        },
+
+        // Callback for Android to trigger reward (Mevcut olan korunuyor)
         onReward: function() {
             if (this.pendingCallback) {
                 this.pendingCallback();
                 this.pendingCallback = null;
-            }
-        },
-
-        showInterstitialAd: function () {
-            if (this.isAndroid()) {
-                if (typeof window.Android.showInterstitial === 'function') {
-                     window.Android.showInterstitial(this.yandexInterstitialId);
-                }
             }
         },
 
@@ -7040,16 +7076,12 @@ if (game.isPvc && game.active) {
         }
 
         // 4. REKLAM MANTIĞI - 3 OYUNDA BİR
+        // endGameLocal fonksiyonu içindeki reklam kısmı
         try {
             gamesPlayedCount++;
-            // Her 3 oyunda bir reklam göster
             if (gamesPlayedCount % 3 === 0) {
-                setTimeout(() => {
-                    // Reklam yüklenmeden önce kontrol et
-                    if (typeof AdManager !== 'undefined' && AdManager.showInterstitialAd) {
-                        AdManager.showInterstitialAd();
-                    }
-                }, 1500);
+                // Artık sadece bunu çağırmak yeterli, sistem önce AdMob sonra Yandex dener.
+                AdManager.showInterstitialAd();
             }
         } catch (e) {
             console.error("Reklam hatası:", e);
@@ -7215,6 +7247,17 @@ function startSingle() {
             return;
         }
 
+        // Bounty (Ödül Avcısı) Moduysa aynı avı tekrar başlatmayı teklif et
+        if (game.mode === 'bounty') {
+            if (typeof attemptBounty === 'function' && game.bountyOwner && game.secret && game.bountyPrize) {
+                attemptBounty(game.bountyId, game.bountyOwner, game.secret, game.bountyPrize, game.diff);
+            } else if (typeof openBountyScreen === 'function') {
+                openBountyScreen();
+            }
+            closeModal('modal-end');
+            return;
+        }
+
         // Online Mod: Rövanş Teklif Modalını Aç
         openRematchModal();
     }
@@ -7222,6 +7265,26 @@ function startSingle() {
     // --- RÖVANŞ SİSTEMİ (STABİL v2) ---
     function openRematchModal() {
         if (!game.room) return;
+
+        if (game.mode === 'online_word') {
+            // Word Game online rematch bypasses the config modal and sends an offer with the same settings
+            db.ref('rooms/' + game.room + '/rematch/offer').set({
+                from: game.role,
+                diff: wordGameState.length,
+                playStyle: wordGameState.timeLimit > 0 ? 'timed' : 'turn',
+                duration: wordGameState.timeLimit,
+                timestamp: Date.now()
+            });
+
+            document.getElementById('endButtons').style.display = 'none';
+            const statusEl = document.getElementById('rematchStatus');
+            if(statusEl) {
+                statusEl.innerText = "Teklif gönderildi, rakip bekleniyor...";
+                statusEl.style.display = 'block';
+            }
+            return;
+        }
+
         showModal('modal-rematch-offer');
     }
 
@@ -7779,9 +7842,6 @@ function startSingle() {
         db.ref('rooms/' + c).on('value', s => {
             const r = s.val();
             if (!r) return;
-
-            // RÖVANŞ KONTROLÜ (YENİ)
-            checkRematchUpdates(r);
 
             // Bağlantı kopma kontrolü
             if (game.active && r.status === 'playing' && (!r.p1 || !r.p2)) {
@@ -9369,7 +9429,11 @@ function startSingle() {
         }
 
         if (typeof game !== 'undefined' && game.bountyId) {
-            if (typeof openBountyScreen === 'function') openBountyScreen();
+            if (typeof attemptBounty === 'function' && game.bountyOwner && game.secret && game.bountyPrize) {
+                attemptBounty(game.bountyId, game.bountyOwner, game.secret, game.bountyPrize, game.diff);
+            } else if (typeof openBountyScreen === 'function') {
+                openBountyScreen();
+            }
             return;
         }
 
@@ -9505,9 +9569,12 @@ function startSingle() {
             wordGameState.active = false;
             AudioEngine.error();
             setTimeout(() => {
-                alert(`MAALESEF BİLEMEDİN!\nDoğru Kelime: ${wordGameState.secret}`);
-                changeScreen('screen-lobby');
-                checkWordGameAd(); // Check ad on loss too? Usually yes.
+                document.getElementById('endButtons').style.display = 'flex';
+                document.getElementById('endTitle').innerText = 'KAYBETTİN';
+                document.getElementById('endTitle').style.color = "#e74c3c";
+                document.getElementById('endMsg').innerText = "Kelime: " + wordGameState.secret;
+                showModal('modal-end');
+                checkWordGameAd();
             }, 500);
         }
 
@@ -9527,8 +9594,11 @@ function startSingle() {
                     AudioEngine.error();
                     showToast("💻 Bilgisayar Kelimeyi Buldu: " + wordGameState.secret);
                     setTimeout(() => {
-                        alert("BİLGİSAYAR KAZANDI! 🤖");
-                        changeScreen('screen-lobby');
+                        document.getElementById('endButtons').style.display = 'flex';
+                        document.getElementById('endTitle').innerText = 'KAYBETTİN';
+                        document.getElementById('endTitle').style.color = "#e74c3c";
+                        document.getElementById('endMsg').innerText = "Kelime: " + wordGameState.secret;
+                        showModal('modal-end');
                         checkWordGameAd();
                     }, 1000);
                 } else {
@@ -9745,52 +9815,6 @@ function startSingle() {
         });
     }
 
-    function listenWordRoom(c) {
-        db.ref('rooms/' + c).on('value', s => {
-            const r = s.val();
-            if (!r) return;
-
-            if (r.status === 'playing' && currentScreen !== 'screen-word-game') {
-                // Start Game
-                wordGameState = {
-                    active: true,
-                    mode: 'online',
-                    secret: r.secret,
-                    length: r.config.length,
-                    guesses: [],
-                    maxGuesses: 6,
-                    currentGuess: "",
-                    level: r.config.length - 2
-                };
-                changeScreen('screen-word-game');
-                renderWordBoard();
-                updateWordKeyboard();
-                showToast("DÜELLO BAŞLADI!");
-            }
-
-            // Check Winner
-            if (r.winner) {
-                if (r.winner === user.name) {
-                    showPiggyWin(500);
-                } else {
-                    alert("KAYBETTİN! Kazanan: " + r.winner);
-                    changeScreen('screen-lobby');
-                }
-                db.ref('rooms/' + c).off();
-            }
-        });
-
-        // Listen for Opponent Moves (Optional: Show ghost rows?)
-        // For now, simpler: First to guess wins.
-
-        db.ref('rooms/' + c + '/word_moves').on('child_added', s => {
-            const m = s.val();
-            if (m.g === wordGameState.secret) {
-                // Someone won
-                db.ref('rooms/' + c).update({ winner: m.u });
-            }
-        });
-    }
 
     function openWordCareer() {
         showModal('modal-word-career');
@@ -9846,6 +9870,9 @@ function startSingle() {
 function restartWordGame() {
         const diff = wordGameState.length;
         const isPvC = (wordGameState.mode === 'pvc');
+        const prevMode = wordGameState.mode;
+        const prevTimeLimit = wordGameState.timeLimit;
+        const prevMaxGuesses = wordGameState.maxGuesses;
 
         const lvl = diff - 2;
         const data = WORD_DATA[lvl] || WORD_DATA[1];
@@ -9854,20 +9881,26 @@ function restartWordGame() {
 
         wordGameState = {
             active: true,
-            mode: isPvC ? 'pvc' : 'single',
+            mode: prevMode,
             secret: secret,
             length: diff,
             guesses: [],
-            maxGuesses: 6,
+            maxGuesses: prevMaxGuesses || 6,
             currentGuess: "",
             level: lvl,
-            startTime: Date.now()
+            startTime: Date.now(),
+            timeLimit: prevTimeLimit
         };
 
         if(isPvC) wordGameState.aiGuesses = [];
 
         renderWordBoard();
         updateWordKeyboard();
+
+        if (prevTimeLimit > 0) {
+            startWordTimer(prevTimeLimit);
+        }
+
         closeModal('modal-end'); // Just in case
     }
 
@@ -10121,10 +10154,7 @@ function restartWordGame() {
             }
         }
 
-        setTimeout(() => {
-            changeScreen('screen-lobby');
-            checkWordGameAd();
-        }, 4000);
+        checkWordGameAd();
     }
 
     function checkWordGameAd() {
@@ -10416,14 +10446,95 @@ function restartWordGame() {
                    wordGameState.active = false;
                    if (r.winner === user.name) {
                        AudioEngine.win();
-                       alert("KAZANDIN! 🎉");
+                       handleWordGameWin();
                    } else {
                        AudioEngine.error();
-                       alert("KAYBETTİN! 😞\nKelime: " + wordGameState.secret);
+                       document.getElementById('endButtons').style.display = 'flex';
+                       document.getElementById('endTitle').innerText = 'KAYBETTİN';
+                       document.getElementById('endTitle').style.color = "#e74c3c";
+                       document.getElementById('endMsg').innerText = "Kelime: " + wordGameState.secret;
+                       showModal('modal-end');
+                       checkWordGameAd();
                    }
-                   changeScreen('screen-lobby');
-                   checkWordGameAd();
                }
+            }
+
+            // --- YENİ RÖVANŞ MANTIĞI (Word Game) ---
+            if (r.winner && r.rematch) {
+                const offer = r.rematch.offer;
+                const response = r.rematch.response;
+
+                if (offer) {
+                    if (offer.from !== game.role) {
+                        const area = document.getElementById('incomingRematchArea');
+                        const text = document.getElementById('incomingRematchText');
+                        const endBtns = document.getElementById('endButtons');
+                        const piggy = document.getElementById('piggyWinOverlay');
+
+                        if (!response) {
+                            if (piggy && piggy.style.display === 'flex') {
+                                piggy.classList.remove('show');
+                                piggy.style.display = 'none';
+                                document.getElementById('endTitle').innerText = 'KAZANDIN';
+                                document.getElementById('endTitle').style.color = "#2ed573";
+                                document.getElementById('endMsg').innerText = "Rakip rövanş istiyor!";
+                                showModal('modal-end');
+                            }
+
+                            if (area.style.display === 'none') {
+                                area.style.display = 'block';
+                                endBtns.style.display = 'none';
+
+                                const styleText = offer.playStyle === 'timed' ? `Süreli (${offer.duration}dk)` : 'Haklı';
+                                text.innerHTML = `<b>Rakip Rövanş İstiyor!</b><br>Kelime Düellosu, ${styleText}`;
+                                AudioEngine.notification();
+                            }
+                        }
+                    } else {
+                        const status = document.getElementById('rematchStatus');
+                        if (status && !response) status.innerText = "Rakip bekleniyor...";
+                    }
+                }
+
+                if (response) {
+                    if (response.accept) {
+                        const statusEl = document.getElementById('rematchStatus');
+                        if (statusEl) statusEl.innerText = "Oyun Başlatılıyor...";
+
+                        if (game.role === 'p1') {
+                            const newLength = offer.diff || 5;
+                            const newStyle = offer.playStyle || 'turn';
+                            const newDur = offer.duration || 0;
+                            const newMaxGuesses = newStyle === 'timed' ? 1000 : 6;
+
+                            const lvl = newLength - 2;
+                            const data = WORD_DATA[lvl] || WORD_DATA[1];
+                            const newSecret = data.words[Math.floor(Math.random() * data.words.length)];
+
+                            setTimeout(() => {
+                                db.ref('rooms/' + c).update({
+                                    winner: null,
+                                    rematch: null,
+                                    word_moves: null,
+                                    status: 'playing',
+                                    secret: newSecret,
+                                    startTime: Date.now(),
+                                    config: { length: newLength, timeLimit: newDur, maxGuesses: newMaxGuesses }
+                                });
+                            }, 1000);
+                        }
+                    } else {
+                        showToast("Rövanş teklifi reddedildi.");
+                        document.getElementById('incomingRematchArea').style.display = 'none';
+                        document.getElementById('endButtons').style.display = 'flex';
+                        const statusEl = document.getElementById('rematchStatus');
+                        if (statusEl) statusEl.innerText = "Reddedildi.";
+
+                        if (game.role === 'p1') {
+                            setTimeout(() => db.ref('rooms/' + c + '/rematch').remove(), 2000);
+                        }
+                    }
+                }
             }
 
             // Wait Logic (P2 Joined)
@@ -10898,31 +11009,26 @@ function restartWordGame() {
     };
 
     // --- GLOBAL AD CALLBACKS (CLEAN V2) ---
+    // Reklam kapandığında Kotlin tarafından tetiklenir
     window.onAdClosed = function() {
-        console.log("Global onAdClosed called");
-
-        // Removed container hiding to fix 'Google Ads disappeared' bug.
+        console.log("Ad Closed - Resuming Game UI");
 
         // Trigger Reward Callback if pending
         if (typeof AdManager !== "undefined" && AdManager.pendingCallback) {
             AdManager.onReward();
         }
 
-        // Resume Game
-        if (typeof window.resumeGame === "function") window.resumeGame();
+        if(window.resumeGame) window.resumeGame();
     };
 
+    // Oyunun donmasını engelleyen kritik fonksiyon
     window.resumeGame = function() {
-        console.log("Global resumeGame called");
-        if (typeof game !== "undefined" && game.active) {
-            // Re-enable interactions if they were disabled
-        }
+        console.log("Resume Game Signal Received");
+        // Burada eğer oyunu durdurduysan (pause), devam ettirme kodlarını ekleyebilirsin.
+        // Örn: game.paused = false;
 
-        // Safe timeout to ensure UI updates after ad
-        setTimeout(() => {
-            // Trigger a resize event to force browser redraw (fixes some white screens)
-            window.dispatchEvent(new Event('resize'));
-        }, 100);
+        // Beyaz ekran kalmaması için ekranı yenilemeye zorla (render fix)
+        window.dispatchEvent(new Event('resize'));
     };
     </script>
 
