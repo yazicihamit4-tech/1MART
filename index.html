@@ -4600,6 +4600,8 @@ text-align: center;
                 </button><button id="btnSabotage" class="item-btn" onclick="useItem('sabotage')">😈 Sabotaj<div
                         id="qty-sabotage" class="item-count">0</div></button>
             </div>
+            <button id="btnPetHelpOption" onclick="acceptPetHelp()" class="btn-gold pulse-active" style="display:none; margin: 15px auto 5px auto; padding: 10px; font-size: 0.9rem; border-radius: 12px; box-shadow: 0 0 15px rgba(241, 196, 15, 0.6);">🐾 YARDIM AL (-30⚡)</button>
+
             <input type="tel" id="guessInput" placeholder="____"
                 style="font-size:24px;letter-spacing:5px;margin-top:20px;" autocomplete="off"><button id="btnGuess"
                 class="btn-green" onclick="makeGuess()" style="height:50px;">TAHMİN
@@ -6366,10 +6368,8 @@ const THEMES = [
                 document.getElementById('timerDisplay').style.color = "var(--gold)";
             }
 
-            // [PET HELP] 30 Saniye Kala Yardım
-            if (leftMs <= 30000 && leftMs > 28000 && !game.petHelpUsed && game.mode !== 'online') {
-                triggerPetHelp();
-            }
+            // [PET HELP] 1 Dakika Kala Yardım
+            checkPetHelpCondition(leftMs);
 
             // SÜRE BİTTİ
             if (leftMs <= 0) {
@@ -6450,33 +6450,51 @@ const THEMES = [
         });
     }
 
-    function triggerPetHelp() {
-        if (game.petHelpUsed || !game.active) return;
+    function checkPetHelpCondition(timeLeftMs) {
+        if (game.petHelpUsed || !game.active || game.mode === 'online' || game.mode === 'online_word') return;
+        if (!user || !user.pet || user.pet.energy < 30) return;
 
-        const activePetKey = (user && user.pet) ? user.pet.active : null;
-        if (!activePetKey) return;
+        let shouldShow = false;
+        if (game.type === 'classic' && game.rights <= 3) shouldShow = true;
+        if (game.type === 'timed' && timeLeftMs !== undefined && timeLeftMs <= 60000) shouldShow = true;
 
-        const petData = PET_DB[activePetKey];
+        const btn = document.getElementById('btnPetHelpOption');
+        if (shouldShow && btn && btn.style.display === 'none') {
+            btn.style.display = 'flex';
+            AudioEngine.notification();
+        }
+    }
+
+    function acceptPetHelp() {
+        if (!user || !user.pet || user.pet.energy < 30) {
+            showToast("Yetersiz enerji!");
+            return;
+        }
+
+        user.pet.energy -= 30;
         game.petHelpUsed = true;
 
-        const petEmoji = document.getElementById('petHelpIcon');
-        const petMsg = document.getElementById('petHelpMsg');
-        const petReward = document.getElementById('petHelpReward');
+        const btn = document.getElementById('btnPetHelpOption');
+        if (btn) btn.style.display = 'none';
 
-        if (petEmoji) petEmoji.innerText = petData.emoji || '🐾';
-        if (petMsg) petMsg.innerText = `${petData.name} senin için burada! Sahibi, pes etme! Sana biraz daha destek getirdim.`;
+        if (typeof PetSystem !== 'undefined') {
+            PetSystem.updateUI();
+            // Optional: Save energy immediately
+            if (user.name) db.ref('users/' + user.name + '/pet').update({ energy: user.pet.energy });
+        }
 
         if (game.type === 'classic') {
             game.rights += 3;
-            document.getElementById('rightsDisplay').innerText = "Hak: " + game.rights;
-            if (petReward) petReward.innerText = "+3 HAK EKLENDİ!";
+            const rd = document.getElementById('rightsDisplay');
+            if (rd) rd.innerText = "Hak: " + game.rights;
+            showToast("🐾 Evcil hayvanından +3 HAK!");
         } else {
-            game.startTime += 30000;
-            if (petReward) petReward.innerText = "+30 SANİYE EKLENDİ!";
+            game.startTime += 60000;
+            showToast("🐾 Evcil hayvanından +1 DAKİKA!");
         }
 
-        showModal('modal-pet-help');
-        AudioEngine.notification();
+        AudioEngine.win();
+        safeConfetti();
     }
 
 
@@ -6632,9 +6650,7 @@ function makeGuess() {
                     document.getElementById('rightsDisplay').innerText = "Hak: " + game.rights;
 
                     // [PET HELP] 3 Hak Kala Yardım (Hak azaldıktan sonra)
-                    if (game.rights === 3 && !game.petHelpUsed && game.mode !== 'online') {
-                        triggerPetHelp();
-                    }
+                    checkPetHelpCondition();
 
                     if (game.rights <= 0) {
                         endGameLocal('lose', 0);
@@ -7419,7 +7435,15 @@ function startSingle() {
     // Eski fonksiyonları temizlemek için placeholder (çakışmasın)
     function acceptRematchLegacy() { }
     function rejectRematchLegacy() { }
-    function resetUI() { document.getElementById('history').innerHTML = ""; document.getElementById('guessInput').value = ""; document.getElementById('gameChatBox').innerHTML = ""; document.getElementById('endButtons').style.display = 'none'; }
+    function resetUI() {
+        document.getElementById('history').innerHTML = "";
+        document.getElementById('guessInput').value = "";
+        document.getElementById('gameChatBox').innerHTML = "";
+        document.getElementById('endButtons').style.display = 'none';
+        const helpBtn = document.getElementById('btnPetHelpOption');
+        if (helpBtn) helpBtn.style.display = 'none';
+        game.petHelpUsed = false;
+    }
     function leaveRoom() {
         game.active = false;
         stopTimer();
