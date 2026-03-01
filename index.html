@@ -4819,6 +4819,23 @@ const THEMES = [
 
 
     const AdManager = {
+        pendingCallback: null,
+
+        // AdMob Configuration (Primary)
+        admobAppId: "ca-app-pub-5879474591831999~1348513678",
+        admobBannerId: "ca-app-pub-5879474591831999/2171448597",
+        admobInterstitialId: "ca-app-pub-5879474591831999/8282395523",
+        admobNativeId: "ca-app-pub-5879474591831999/2306675386",
+        admobRewardedId: "ca-app-pub-5879474591831999/6350366758",
+        admobRewardedIntId: "ca-app-pub-5879474591831999/3058677360",
+
+        // Yandex Units (Secondary)
+        yandexAppId: "18543851",
+        yandexBannerId: "R-M-18543851-11", // Afiş 1
+        yandexInterstitialId: "R-M-18543851-10",
+        yandexBanner2Id: "R-M-18543851-9", // Afiş 2
+        yandexRewardedId: "R-M-18543851-8",
+
         // Android Interface Kontrolü
         isAndroid: function () {
             return (typeof window.Android !== "undefined" && window.Android !== null);
@@ -4828,7 +4845,11 @@ const THEMES = [
         showInterstitialAd: function () {
             if (this.isAndroid()) {
                 // Yeni MainActivity'deki birleştirilmiş akışı çağırır
-                window.Android.showInterstitial(null);
+                if (typeof window.Android.showInterstitial === 'function') {
+                    window.Android.showInterstitial(null);
+                } else if (typeof window.Android.showAd === 'function') {
+                    window.Android.showAd(null);
+                }
             } else {
                 console.log("Web Mode: Interstitial Simulation");
                 if(window.resumeGame) window.resumeGame();
@@ -4844,11 +4865,31 @@ const THEMES = [
             };
 
             if (this.isAndroid()) {
-                window.Android.showRewardedAd(null);
+                if (typeof window.Android.showRewardedAd === 'function') {
+                    window.Android.showRewardedAd(null);
+                }
             } else {
                 console.log("Web Mode: Rewarded Simulation");
                 if(window.onReward) window.onReward();
                 if(window.resumeGame) window.resumeGame();
+            }
+        },
+
+        // Native Reklam (Eski fonksiyon uyumluluğu)
+        showNativeAd: function () {
+            if (this.isAndroid()) {
+                if (typeof window.Android.showNativeAd === 'function') {
+                    window.Android.showNativeAd(this.admobNativeId);
+                }
+            }
+        },
+
+        // Banner Reklam (Eski fonksiyon uyumluluğu)
+        showBannerAd: function () {
+            if (this.isAndroid()) {
+                if (typeof window.Android.showBannerAd === 'function') {
+                    window.Android.showBannerAd(this.admobBannerId);
+                }
             }
         }
     };
